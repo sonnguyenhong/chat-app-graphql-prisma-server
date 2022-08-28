@@ -2,7 +2,6 @@ const bcrypt = require('bcryptjs')
 const {UserInputError, AuthenticationError} = require('apollo-server')
 const jwt = require('jsonwebtoken')
 const { verifyToken } = require('../utils/auth.utils')
-
 const pubsub = require('../config/pubSubConfig')
 
 const register = async (parent, args, context, info) => {
@@ -83,7 +82,6 @@ const login = async(parent, args, context, info) => {
         if(Object.keys(errors).length > 0) {
             throw new UserInputError('Invalid input', {errors})
         }
-
         const userExist = await context.prisma.user.findUnique({
             where: {
                 username: username
@@ -121,12 +119,12 @@ const sendMessage = async (parent, args, context, info) => {
     try {
 
         const {to, content} = args
-        let user = verifyToken(context.req)
-        if(!user) {
+        
+        if(!context.user) {
             throw new AuthenticationError('Unauthenticated')
         }
         
-        if(user.username === to) {
+        if(context.user.username === to) {
             throw new UserInputError('You cant message yourself')
         }
 
@@ -145,7 +143,7 @@ const sendMessage = async (parent, args, context, info) => {
 
         const message = await context.prisma.message.create({
             data: {
-                from: user.username,
+                from: context.user.username,
                 to: to,
                 content: content
             }
