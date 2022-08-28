@@ -2,13 +2,13 @@ const { AuthenticationError, UserInputError } = require('apollo-server')
 const {verifyToken} = require('../utils/auth.utils')
 
 const getUsers = async (parent, args, context, info) => {
-    const userPayload = verifyToken(context.req)
-    console.log(userPayload)
-    if(userPayload) {
+    // const userPayload = verifyToken(context.req)
+    // console.log(userPayload)
+    if(context.user) {
         let users = await context.prisma.user.findMany({
             where: {
                 NOT: {
-                    username: userPayload.username
+                    username: context.user.username
                 }
             }
         })
@@ -17,10 +17,10 @@ const getUsers = async (parent, args, context, info) => {
             where: {
                 OR: [
                     {
-                        from: userPayload.username
+                        from: context.user.username
                     }, 
                     {
-                        to: userPayload.username
+                        to: context.user.username
                     }
                 ]
             }, 
@@ -47,7 +47,7 @@ const getUsers = async (parent, args, context, info) => {
 const getMessages = async (parent, args, context, info) => {
     const {from} = args
     try {
-        const user = verifyToken(context.req)
+        const user = context.user
         if(!user) {
             throw new AuthenticationError('Unauthenticated')
         }
