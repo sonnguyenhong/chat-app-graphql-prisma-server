@@ -19,6 +19,7 @@ const Query = require('./resolvers/Query')
 const Subscription = require('./resolvers/Subscription')
 const Message = require('./resolvers/Message')
 const User = require('./resolvers/User');
+const Reaction = require('./resolvers/Reaction')
 const { verifyToken } = require('./utils/auth.utils');
 const contextMiddleware = require('./utils/context.utils')
 
@@ -29,7 +30,8 @@ const resolvers = {
     Query,
     Subscription,
     Message,
-    User
+    User,
+    Reaction
 }
 
 const app = express()

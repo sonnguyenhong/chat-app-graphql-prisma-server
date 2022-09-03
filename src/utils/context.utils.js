@@ -21,7 +21,7 @@ module.exports = (context) => {
 
     // context.pubsub = pubsub
     // console.log(pubsub)
-    context.prisma = prisma
+    // context.prisma = prisma
     
     // console.log('context: ', context.user)
 
