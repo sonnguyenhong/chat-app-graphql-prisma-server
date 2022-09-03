@@ -1,9 +1,9 @@
 const bcrypt = require('bcryptjs')
-const {UserInputError, AuthenticationError} = require('apollo-server')
+const {UserInputError, AuthenticationError, ForbiddenError} = require('apollo-server')
 const jwt = require('jsonwebtoken')
 const { verifyToken } = require('../utils/auth.utils')
 const pubsub = require('../config/pubSubConfig')
-
+const prisma = require('../config/prismaConfig')
 const register = async (parent, args, context, info) => {
     const {username, email, password, confirmPassword} = args
     let errors = {}
@@ -23,13 +23,13 @@ const register = async (parent, args, context, info) => {
             errors.confirmPassword = 'Password and repeat password must be the same'
         }
         // Check if username / email exists
-        const usernameExist = await context.prisma.user.findUnique({
+        const usernameExist = await prisma.user.findUnique({
             where: {
                 username: username
             }
         })
         
-        const emailExist = await context.prisma.user.findUnique({
+        const emailExist = await prisma.user.findUnique({
             where: {
                 email: email
             }
@@ -54,7 +54,7 @@ const register = async (parent, args, context, info) => {
         // Hash password
         const hashedPassword = await bcrypt.hash(password, 6)
         // Create user
-        const user = await context.prisma.user.create({
+        const user = await prisma.user.create({
             data: {
                 username, 
                 email,
@@ -72,7 +72,7 @@ const register = async (parent, args, context, info) => {
 const login = async(parent, args, context, info) => {
     const {username, password} = args
     let errors = {}
-
+    
     try {
         if(username.trim() === '') 
             errors.username = 'Username must not be empty'
@@ -82,7 +82,8 @@ const login = async(parent, args, context, info) => {
         if(Object.keys(errors).length > 0) {
             throw new UserInputError('Invalid input', {errors})
         }
-        const userExist = await context.prisma.user.findUnique({
+        // console.log('prisma: ', prisma)
+        const userExist = await prisma.user.findUnique({
             where: {
                 username: username
             }
@@ -128,7 +129,7 @@ const sendMessage = async (parent, args, context, info) => {
             throw new UserInputError('You cant message yourself')
         }
 
-        const recipient = await context.prisma.user.findUnique({
+        const recipient = await prisma.user.findUnique({
             where: {
                 username: to
             }
@@ -141,7 +142,7 @@ const sendMessage = async (parent, args, context, info) => {
             throw new UserInputError('Message is empty')
         }
 
-        const message = await context.prisma.message.create({
+        const message = await prisma.message.create({
             data: {
                 from: context.user.username,
                 to: to,
@@ -161,8 +162,91 @@ const sendMessage = async (parent, args, context, info) => {
     }
 }
 
+const reactToMessage = async (_, args, context) => {
+    const reactions = ['❤️', '😆', '😯', '😢', '😡', '👍', '👎']
+    try {
+        const {messageId, content} = args
+        // Validate reactions
+        if(!reactions.includes(content)) {
+            throw new UserInputError('Invalid Reaction')
+        }
+
+        // Get user
+        const username = context.user ? context.user.username: ''
+        const user = await prisma.user.findUnique({
+            where: {
+                username: username
+            }
+        })
+
+        if(!user) {
+            throw new AuthenticationError('Unauthenticated')
+        }
+
+        // Get message
+        const message = await prisma.message.findUnique({
+            where: {
+                id: messageId
+            }
+        })
+
+        if(!message) {
+            throw new UserInputError('Message not found')
+        }
+
+        if(message.from !== user.username && message.to !== user.username) {
+            throw new ForbiddenError('Unauthorized')
+        }
+
+        // Create reaction
+        let reaction = await prisma.reaction.findMany({
+            where: {
+                messageId: message.id, 
+                userId: user.id
+            }
+        })
+        
+        reaction = reaction[0] ? reaction[0] : null
+        
+        if(reaction) {
+            // If reaction exist, update it
+            reaction = await prisma.reaction.update({
+                where: {
+                    id: reaction.id
+                }, 
+                data: {
+                    content: content,
+                    updatedAt: new Date()
+                }
+            })
+        } else {
+            // Reaction doesnt exists, create it
+            reaction = await prisma.reaction.create({
+                data: {
+                    content: content,
+                    messageId: message.id,
+                    userId: user.id
+                }
+            })
+        }   
+        // reaction.message = message
+        // reaction.user = user
+
+        pubsub.publish('NEW_REACTION', {
+            newReaction: reaction
+        })
+
+        return reaction
+
+    } catch(e) {
+        console.log(e)
+        return e
+    }
+}
+
 module.exports = {
     register,
     login,
-    sendMessage
+    sendMessage,
+    reactToMessage
 }

@@ -2,6 +2,7 @@ const { AuthenticationError } = require('apollo-server-core')
 const { withFilter } = require('graphql-subscriptions')
 const { verifyToken } = require('../utils/auth.utils')
 const pubsub = require('../config/pubSubConfig')
+const prisma = require('../config/prismaConfig')
 const { subscribe } = require('graphql')
 
 const newMessage = {
@@ -29,6 +30,27 @@ const newMessage = {
     // )
 }
 
+const newReaction = {
+    subscribe: withFilter((_, __, context) => {
+        if(!context.user) {
+            throw new AuthenticationError("Unauthenticated")
+        }
+        return pubsub.asyncIterator(['NEW_REACTION'])
+    }, async (payload, variables, context) => {
+        const message = await prisma.message.findUnique({
+            where: {
+                id: payload.newReaction.messageId
+            }
+        })
+        console.log('message: ', message)
+        if(message.from === context.user.username || message.to === context.user.username) {
+            return true
+        }
+        return false 
+    })
+}
+
 module.exports = {
     newMessage,
+    newReaction
 }

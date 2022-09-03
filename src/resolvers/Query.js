@@ -1,11 +1,11 @@
 const { AuthenticationError, UserInputError } = require('apollo-server')
 const {verifyToken} = require('../utils/auth.utils')
-
+const prisma = require('../config/prismaConfig')
 const getUsers = async (parent, args, context, info) => {
     // const userPayload = verifyToken(context.req)
     // console.log(userPayload)
     if(context.user) {
-        let users = await context.prisma.user.findMany({
+        let users = await prisma.user.findMany({
             where: {
                 NOT: {
                     username: context.user.username
@@ -13,7 +13,7 @@ const getUsers = async (parent, args, context, info) => {
             }
         })
 
-        const allUserMessages = await context.prisma.message.findMany({
+        const allUserMessages = await prisma.message.findMany({
             where: {
                 OR: [
                     {
@@ -52,7 +52,7 @@ const getMessages = async (parent, args, context, info) => {
             throw new AuthenticationError('Unauthenticated')
         }
 
-        const otherUser = await context.prisma.user.findUnique({
+        const otherUser = await prisma.user.findUnique({
             where: {
                 username: from
             }
@@ -62,7 +62,7 @@ const getMessages = async (parent, args, context, info) => {
             throw new UserInputError('User not found')
         }
 
-        const messages = await context.prisma.message.findMany({
+        const messages = await prisma.message.findMany({
             where: {
                 from: {
                     in: [user.username, otherUser.username]
